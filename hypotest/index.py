@@ -1,15 +1,9 @@
-from hypo import runs, Run, run_git_status
+from hypo import runs, run, Run, run_git_status
+import time
 
 
-@runs
-def method():
-    return [
-        Run(name="a", cwd=".", output="./a", command="echo $cwd aaaaaa"),
-        run_git_status(),
-    ]
-
-
-@runs
-def methods():
-    yield Run(name="a", cwd=".", output="./a", command="echo $cwd aaaaaa")
-    yield Run(name="b", cwd=".", output="./b", command="echo $cwd bbbbb")
+@runs(max_workers=5)
+def trials():
+    for i in range(5):
+        yield Run(command=f"echo computing {i}", name="compute", cwd=".", output=".")
+        # time.sleep(2)  # preparing

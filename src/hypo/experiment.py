@@ -225,37 +225,44 @@ def _csv_summary(summary):
     c.writerow(summary)
 
 
-def run(func):
+def run(max_workers=2):
     """Decorator. Run the experiments list"""
-    exp = Experiment()
 
-    def wrapper(*args, **kwargs):
-        result = func(*args, **kwargs)
-        exp.launch(result)
-        return result
+    def inner(func):
+        exp = Experiment()
 
-    return wrapper
+        def wrapper():
+            result = func()
+            exp.launch(result, max_workers)
+            return result
+
+        return wrapper
+
+    return inner
 
 
-def runs(func):
+def runs(max_workers=2):
     """Decorator. Run the experiments yield"""
-    exp = Experiment()
-    q = Queue()
-    print(type(q))
 
-    def wrapper():
-        # run in seperate process
-        def inner():
-            gen = func()  # Get the generator
-            for value in gen:
-                q.put(value)  # Put each value into the queue
+    def inner(func):
+        def wrapper():
+            exp = Experiment()
+            q = Queue()
 
-        process = Process(target=inner)
-        process.start()
-        # need None to say stop
-        q.put(None)
-        process.join()
+            # run in seperate process
+            def processing():
+                gen = func()  # Get the generator
+                for value in gen:
+                    q.put(value)  # Put each value into the queue
 
-        exp.launch(q)  # Process all items in the queue
+            process = Process(target=processing)
+            process.start()
+            # need None to say stop
+            q.put(None)
+            process.join()
 
-    return wrapper
+            exp.launch(q, max_workers)  # Process all items in the queue
+
+        return wrapper
+
+    return inner

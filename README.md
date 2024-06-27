@@ -9,24 +9,22 @@ from hypo import run, runs, Run
 
 @run
 def trial():
-    return [Run(name="a", cwd=".", output=".", command="echo this_is_a_very_complex_prompt_to_start_your_experiment_in_bash")]
+    return [Run(command="echo this_is_a_very_complex_prompt_to_start_your_experiment_in_bash", name="echo", cwd=".", output=".")]
 
 @runs
 def trials():
-    time.sleep(10) # computing
-    yield Run(name="a", cwd=".", output=".", command="echo this_is_a_very_complex_prompt_to_start_your_experiment_in_bash_1")
-    time.sleep(10) # computing
-    yield Run(name="b", cwd=".", output=".", command="echo this_is_a_very_complex_prompt_to_start_your_experiment_in_bash_2")
-
+    for i in range(10):
+        yield Run(command="sleep 5", name="compute", cwd=".", output=".")
+        time.sleep(2) # preparing 
 ```
 
 
 Then you can start your task parallel.
 
 ```bash 
-hypo epoch trial # to start method trial
+hypo epoch trial # to start method trial. Create tasks, then run.
 
-hypo epoch trials # to start method trials, if your task producer need to prepare in another processing.
+hypo epoch trials # to start method trials. Parallel create tasks and run.
 ```
 
 After run all experiments, you could check the task summary in the output folder named `summary.json`.
@@ -58,7 +56,7 @@ After run all experiments, you could check the task summary in the output folder
 ]
 ```
 
-## Extension
+## Extensions
 
 You can use some pre-defined Run. for example, the `git version` using `run_git_status`.
 
@@ -68,7 +66,7 @@ from hypo import runs, Run, run_git_status
 @runs
 def method():
     return [
-        Run(name="a", cwd=".", output="./a", command="echo $cwd aaaaaa"),
+        Run(name="a", cwd=".", output="./a", command="echo $cwd"),
         run_git_status(),
     ]
 
