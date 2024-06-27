@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict, field
 import os
 import shutil
-
+from multiprocessing import Queue, queues, Process
 import subprocess
 import sys
 import time
@@ -56,11 +56,10 @@ class Run:
         return s
 
 
-class BaseExperiment:
+class Experiment:
     """
     Is a container for Run class. Main function is "launch" the Runs.
     """
-    
 
     # ===== For human =====
     # The title for this experiment.
@@ -75,10 +74,10 @@ class BaseExperiment:
     parameters: any
     # The argparse args for experiments.
     args: list = None
+    runs: Queue
 
-    def __init__(self, queue, args: list = None) -> None:
+    def __init__(self, args: list = None) -> None:
 
-        self.runs = queue
         if args is not None:
             self.args = args
 
@@ -143,13 +142,8 @@ class BaseExperiment:
                         c.writeheader()
                         c.writerow(summary)
                     if in_json:
-                        json.dump(
-                            summary,
-                            f,
-                            indent=4,
-                            ensure_ascii=False,
-                            default=json_encoder,
-                        )
+                        summary["output"] = str(summary["output"])
+                        json.dump(summary, f, indent=4, ensure_ascii=False)
 
                     logger.info(f"Save the summary into {summary_path}")
 
@@ -157,10 +151,17 @@ class BaseExperiment:
             except Exception as e:
                 logger.exception(f"Thread encountered an error: {e}")
 
-    def launch(self, max_workers=None):
+    def launch(self, runs, max_workers=None):
         """
         Run the experiments in parallel using processes.
         """
+        if isinstance(runs, queues.Queue):
+            self.runs = runs
+        else:
+            self.runs = Queue()
+            [self.runs.put(i) for i in runs]
+            self.runs.put(None)
+
         from concurrent.futures import as_completed, ThreadPoolExecutor
 
         if max_workers is None:
@@ -181,3 +182,36 @@ class BaseExperiment:
 
         time_consume = time.time() - start
         logger.info(f"All tasks done, used {time_consume:.2f}s")
+
+
+def run(func):
+    """Decorator. Run the experiments list"""
+    exp = Experiment()
+
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        exp.launch(result)
+        return result
+
+    return wrapper
+
+
+def runs(func):
+    """Decorator. Run the experiments yield"""
+    exp = Experiment()
+    q = Queue()
+    print(type(q))
+
+    def wrapper():
+        def inner():
+            gen = func()  # Get the generator
+            for value in gen:
+                q.put(value)  # Put each value into the queue
+
+        process = Process(target=inner)
+        process.start()
+        process.join()
+
+        exp.launch(q)  # Process all items in the queue
+
+    return wrapper

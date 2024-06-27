@@ -24,5 +24,5 @@ args, subargs = parser.parse_known_args()
 if args.expName != "":
     args.expName = args.expName + "."
 
-logger.info(f"[Hypo args]\n{args}")
-logger.info(f"[Passed args to experiments]\n{subargs}")
+logger.info(f"\033[34m[Hypo]: {args}")
+logger.info(f"\033[34m[Experiments args]: {subargs}")

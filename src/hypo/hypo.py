@@ -6,20 +6,18 @@ sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '.')))
 
 def main():
     import importlib
-    from .experiment import BaseExperiment
+    from .experiment import Experiment
     from .cfg import args, subargs
-    from loguru import logger
 
-
+    load_module = args.expName + "index"
     # load the index file of the theorm. The index file contains the Experiment class.
-    module = importlib.import_module(args.expName + "index")
-    # module = importlib.import_module("index")
-    experiment: BaseExperiment = module.Experiment(subargs)
+    module = importlib.import_module(load_module)
+    # experiment: BaseExperiment = module.Experiment(subargs)
 
     # the method function in the Experiment class.
-    method = getattr(experiment, args.method)
+    method = getattr(module, args.method)
 
-    method()
+    method(*subargs)
 
 
 if __name__ == "__main__":
