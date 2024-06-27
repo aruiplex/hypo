@@ -1,11 +1,11 @@
-print("b")
-
-import hypo
+from hypo import runs, Run
 
 
-class Experiment(hypo.BaseExperiment):
-    def method(self):
-        print("method 1 launched")
+@runs
+def method():
+    return [Run(name="a", cwd=".", output="./a", command="echo $cwd aaaaaa")]
 
-
-a = "111"
+@runs
+def methods():
+    yield Run(name="a", cwd=".", output="./a", command="echo $cwd aaaaaa")
+    yield Run(name="b", cwd=".", output="./b", command="echo $cwd bbbbb")
