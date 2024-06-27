@@ -1,0 +1,14 @@
+*
+
+!*.py
+!*.toml
+!LICENSE.txt
+!*.md
+!*.yaml
+!*.yml
+!.gitignore
+
+!*/
+
+*.egg*
+.vscode

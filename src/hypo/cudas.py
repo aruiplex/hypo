@@ -1,0 +1,79 @@
+import GPUtil
+import threading
+from loguru import logger
+
+
+class Rources:
+    def __len__(self):
+        pass
+
+    def add(self, idx: int):
+        pass
+
+    def pop(self) -> int:
+        pass
+
+
+# class CUDAs:
+#     """Dispatch tasks to different CUDA devices with load balancing.
+#     1 task per cuda device by default.
+#     """
+
+#     def __init__(self, max_workers: int = 1) -> None:
+#         self.lock = threading.Lock()
+#         self.cuda_devices = {
+#             x: 0 for x in range(len(GPUtil.getGPUs()))
+#         }  # Track tasks per CUDA device
+
+#         self.max_workers = max_workers
+
+#         logger.info(f"Available GPUs: {list(self.cuda_devices.keys())}")
+
+#     def __len__(self):
+#         return sum(self.cuda_devices.values())
+
+#     def pop(self) -> int:
+#         with self.lock:
+#             # Find the CUDA device with the least number of tasks, respecting the max_workers limit
+#             available_devices = {
+#                 k: v for k, v in self.cuda_devices.items() if v < self.max_workers
+#             }
+#             if not available_devices:
+#                 raise Exception("No available CUDA devices under max_workers limit.")
+#             cuda_id = min(available_devices, key=available_devices.get)
+#             # Increment task count for the selected device
+#             self.cuda_devices[cuda_id] += 1
+#             return cuda_id
+
+#     def add(self, idx: int):
+#         with self.lock:
+#             if self.cuda_devices[idx] > 0:
+#                 self.cuda_devices[idx] -= 1  # Decrement task count for the device
+#             else:
+#                 logger.warning(
+#                     f"Trying to remove a task from GPU {idx} which has no tasks."
+#                 )
+
+
+class CUDAs(Rources):
+    """Dispatch the tasks to the different cudas."""
+
+    def __init__(self, max_workers=None) -> None:
+        self.lock = threading.Lock()
+        if max_workers is None:
+            self.cudas = set(GPUtil.getAvailable(limit=8))
+        else:
+            self.cudas = {x for x in range(max_workers)}
+
+        logger.info(f"Available GPUs: {self.cudas}")
+
+    def __len__(self):
+        return len(self.cudas)
+
+    def pop(self) -> int:
+        with self.lock:
+            return self.cudas.pop()
+
+    def add(self, idx):
+        with self.lock:
+            self.cudas.add(idx)
