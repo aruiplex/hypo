@@ -10,11 +10,23 @@ from pathlib import Path
 import GPUtil
 import json
 import datetime
-from axiom.utils import name as givename
 import csv
 import pprint
 from loguru import logger
 from .cudas import CUDAs
+
+
+def givename(value=None):
+    # zoneinfo is a standard library since python 3.9
+    if value is None or value in ["", " "]:
+        try:
+            from zoneinfo import ZoneInfo
+
+            return datetime.now(tz=ZoneInfo("Asia/Shanghai")).strftime(
+                "%Y-%m-%d__%H-%M-%S"
+            )
+        except ImportError:
+            return datetime.now().strftime("%Y-%m-%d__%H-%M-%S")
 
 
 @dataclass

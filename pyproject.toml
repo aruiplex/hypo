@@ -9,9 +9,9 @@
 # https://packaging.python.org/en/latest/tutorials/packaging-projects/#choosing-a-build-backend
 [build-system]
 # A list of packages that are needed to build your package:
-requires = ["setuptools"]  # REQUIRED if [build-system] table is used
+requires = ["setuptools"] # REQUIRED if [build-system] table is used
 # The name of the Python object that frontends will use to perform the build:
-build-backend = "setuptools.build_meta"  # If not defined, then legacy behavior can happen.
+build-backend = "setuptools.build_meta" # If not defined, then legacy behavior can happen.
 
 
 [project]
@@ -26,14 +26,14 @@ build-backend = "setuptools.build_meta"  # If not defined, then legacy behavior 
 # There are some restrictions on what makes a valid project name
 # specification here:
 # https://packaging.python.org/specifications/core-metadata/#name
-name = "hypo-core"  # REQUIRED, is the only field that cannot be marked as dynamic.
+name = "hypo-core" # REQUIRED, is the only field that cannot be marked as dynamic.
 
 # Versions should comply with PEP 440:
 # https://www.python.org/dev/peps/pep-0440/
 #
 # For a discussion on single-sourcing the version, see
 # https://packaging.python.org/guides/single-sourcing-package-version/
-version = "1.0.0"  # REQUIRED, although can be dynamic
+version = "1.0.0" # REQUIRED, although can be dynamic
 
 # This is a one-line description or tagline of what your project does. This
 # corresponds to the "Summary" metadata field:
@@ -59,7 +59,7 @@ requires-python = ">=3.8"
 # This is either text indicating the license for the distribution, or a file
 # that contains the license.
 # https://packaging.python.org/en/latest/specifications/core-metadata/#license
-license = {file = "LICENSE.txt"}
+license = { file = "LICENSE.txt" }
 
 # This field adds keywords for your project which will appear on the
 # project page. What does your project relate to?
@@ -67,21 +67,17 @@ license = {file = "LICENSE.txt"}
 # Note that this is a list of additional keywords, separated
 # by commas, to be used to assist searching for the distribution in a
 # larger catalog.
-keywords = ["sample", "setuptools", "development"]
+keywords = ["cli tool", "experiment", "Parallel controller"]
 
 # This should be your name or the name of the organization who originally
 # authored the project, and a valid email address corresponding to the name
 # listed.
-authors = [
-  {name = "A. Random Developer", email = "author@example.com" }
-]
+authors = [{ name = "ruimox", email = "aruix@outlook.com" }]
 
 # This should be your name or the names of the organization who currently
 # maintains the project, and a valid email address corresponding to the name
 # listed.
-maintainers = [
-  {name = "A. Great Maintainer", email = "maintainer@example.com" }
-]
+maintainers = [{ name = "ruimox", email = "aruix@outlook.com" }]
 
 # Classifiers help users find your project by categorizing it.
 #
@@ -91,7 +87,7 @@ classifiers = [
   #   3 - Alpha
   #   4 - Beta
   #   5 - Production/Stable
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 5 - Production",
 
   # Indicate who your project is intended for
   "Intended Audience :: Developers",
@@ -118,9 +114,7 @@ classifiers = [
 #
 # For an analysis of this field vs pip's requirements files see:
 # https://packaging.python.org/discussions/install-requires-vs-requirements/
-dependencies = [
-  "loguru"
-]
+dependencies = ["loguru","GPUtil"]
 
 # List additional groups of dependencies here (e.g. development
 # dependencies). Users will be able to install these using the "extras"
@@ -131,9 +125,9 @@ dependencies = [
 # Optional dependencies the project provides. These are commonly 
 # referred to as "extras". For a more extensive definition see:
 # https://packaging.python.org/en/latest/specifications/dependency-specifiers/#extras
-[project.optional-dependencies]
-dev = ["check-manifest"]
-test = ["coverage"]
+# [project.optional-dependencies]
+# dev = ["check-manifest"]
+# test = ["coverage"]
 
 # List URLs that are relevant to your project
 #
@@ -163,4 +157,4 @@ hypo = "hypo:main"
 [tool.setuptools]
 # If there are data files included in your packages that need to be
 # installed, specify them here.
-package-data = {"sample" = ["*.dat"]}
+# package-data = { "sample" = ["*.dat"] }
