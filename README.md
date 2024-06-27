@@ -1,39 +1,77 @@
-# A sample Python project
+# Hypo, cli tool to run os command.
 
-![Python Logo](https://www.python.org/static/community_logos/python-logo.png "Sample inline image")
+Run you complex prompt experiments in System level invoke.
 
-A sample project that exists as an aid to the [Python Packaging User
-Guide][packaging guide]'s [Tutorial on Packaging and Distributing
-Projects][distribution tutorial].
+```python
+# In epoch/trial.py
+from hypo import run, runs, Run
 
-This project does not aim to cover best practices for Python project
-development as a whole. For example, it does not provide guidance or tool
-recommendations for version control, documentation, or testing.
 
-[The source for this project is available here][src].
+@run
+def trial():
+    return [Run(name="a", cwd=".", output=".", command="echo this_is_a_very_complex_prompt_to_start_your_experiment_in_bash")]
 
-The metadata for a Python project is defined in the `pyproject.toml` file,
-an example of which is included in this project. You should edit this file
-accordingly to adapt this sample project to your needs.
+@runs
+def trials():
+    time.sleep(10) # computing
+    yield Run(name="a", cwd=".", output=".", command="echo this_is_a_very_complex_prompt_to_start_your_experiment_in_bash_1")
+    time.sleep(10) # computing
+    yield Run(name="b", cwd=".", output=".", command="echo this_is_a_very_complex_prompt_to_start_your_experiment_in_bash_2")
 
-----
+```
 
-This is the README file for the project.
 
-The file should use UTF-8 encoding and can be written using
-[reStructuredText][rst] or [markdown][md use] with the appropriate [key set][md
-use]. It will be used to generate the project webpage on PyPI and will be
-displayed as the project homepage on common code-hosting services, and should be
-written for that purpose.
+Then you can start your task parallel.
 
-Typical contents for this file would include an overview of the project, basic
-usage examples, etc. Generally, including the project changelog in here is not a
-good idea, although a simple “What's New” section for the most recent version
-may be appropriate.
+```bash 
+hypo epoch trial # to start method trial
 
-[packaging guide]: https://packaging.python.org
-[distribution tutorial]: https://packaging.python.org/tutorials/packaging-projects/
-[src]: https://github.com/pypa/sampleproject
-[rst]: http://docutils.sourceforge.net/rst.html
-[md]: https://tools.ietf.org/html/rfc7764#section-3.5 "CommonMark variant"
-[md use]: https://packaging.python.org/specifications/core-metadata/#description-content-type-optional
+hypo epoch trials # to start method trials, if your task producer need to prepare in another processing.
+```
+
+After run all experiments, you could check the task summary in the output folder named `summary.json`.
+
+```json
+[
+    {
+        "Experiment": "2024-06-27__18-35-21",
+        "time": "0.00",
+        "start": "2024-06-27__18-35-21",
+        "end": "2024-06-27__18-35-21",
+        "runs": [
+            {
+                "name": "a",
+                "command": "echo $cwd aaaaaa",
+                "cwd": "/data/Hypothesis/hypo",
+                "output": "/data/Hypothesis/hypo/a",
+                "datetime": "2024-06-27__18-35-21"
+            },
+            {
+                "name": "Git Version",
+                "command": "git rev-parse HEAD",
+                "cwd": "/data/Hypothesis/hypo",
+                "output": "/data/Hypothesis/hypo",
+                "datetime": "2024-06-27__18-35-21"
+            }
+        ]
+    }
+]
+```
+
+## Extension
+
+You can use some pre-defined Run. for example, the `git version` using `run_git_status`.
+
+```python
+from hypo import runs, Run, run_git_status
+
+@runs
+def method():
+    return [
+        Run(name="a", cwd=".", output="./a", command="echo $cwd aaaaaa"),
+        run_git_status(),
+    ]
+
+```
+
+

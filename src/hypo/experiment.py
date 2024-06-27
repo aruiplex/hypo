@@ -14,6 +14,7 @@ import csv
 import pprint
 from loguru import logger
 from .cudas import CUDAs
+from time import strftime, localtime
 
 
 def givename(value=None):
@@ -22,11 +23,11 @@ def givename(value=None):
         try:
             from zoneinfo import ZoneInfo
 
-            return datetime.now(tz=ZoneInfo("Asia/Shanghai")).strftime(
+            return datetime.datetime.now(tz=ZoneInfo("Asia/Shanghai")).strftime(
                 "%Y-%m-%d__%H-%M-%S"
             )
         except ImportError:
-            return datetime.now().strftime("%Y-%m-%d__%H-%M-%S")
+            return datetime.datetime.now().strftime("%Y-%m-%d__%H-%M-%S")
 
 
 @dataclass
@@ -54,7 +55,8 @@ class Run:
     datetime: str = givename()  # as start time
 
     def __post_init__(self):
-        self.output = Path(self.output)
+        self.output = Path(self.output).absolute()
+        self.cwd = Path(self.cwd).absolute()
         self.output.mkdir(parents=True, exist_ok=True)
 
     def _except_call_back(self, e: Exception):
@@ -64,8 +66,7 @@ class Run:
         logger.exception(f"removed the output: {self.output}")
 
     def __str__(self):
-        s = pprint.pformat(asdict(self))
-        return s
+        return pprint.pformat(asdict(self))
 
 
 class Experiment:
@@ -86,7 +87,10 @@ class Experiment:
     parameters: any
     # The argparse args for experiments.
     args: list = None
+    # a pipe to recv task from producer and consume the task to worker.
     runs: Queue
+    # a record, to create summary.
+    done_tasks = []
 
     def __init__(self, args: list = None) -> None:
 
@@ -101,8 +105,6 @@ class Experiment:
         A threading safe method. The launch is not threading safe.
         Continuously fetches and processes tasks from the queue.
         """
-        in_json = True
-        in_csv = False
 
         while True:
             try:
@@ -114,14 +116,14 @@ class Experiment:
                 logger.info(f"LAUNCH:\n{pprint.pformat(asdict(running))}")
                 start_time = time.time()
 
+                # <resource-control> use env to control the using resouces & control the processing
                 # each thread should have its own copy of local variables.
                 env = os.environ.copy()
-                print("a")
                 cuda_visible_devices = self.cudas.pop()
                 env["CUDA_VISIBLE_DEVICES"] = str(cuda_visible_devices)
+                # </resource-control>
 
-                # === launch ===
-
+                # <launch>
                 try:
                     subprocess.run(
                         running.command,
@@ -135,31 +137,21 @@ class Experiment:
                 except Exception as e:
                     running._except_call_back(e)
 
-                # === /launch ===
+                # </launch>
 
+                # time consuming
                 t = time.time() - start_time
                 logger.info(f"{running.command} finished in {t:.1f}s.")
                 running.time_consume = str(datetime.timedelta(seconds=t))
+                running.finish_at = datetime.datetime.now().strftime(
+                    "%Y-%m-%d__%H-%M-%S"
+                )
 
-                summary = asdict(running)
-
-                if in_json:
-                    summary_path = running.output / "summary.json"
-                elif in_csv:
-                    summary_path = running.output / "summary.csv"
-
-                with open(summary_path, "a") as f:
-                    if in_csv:
-                        c = csv.DictWriter(f, summary.keys())
-                        c.writeheader()
-                        c.writerow(summary)
-                    if in_json:
-                        summary["output"] = str(summary["output"])
-                        json.dump(summary, f, indent=4, ensure_ascii=False)
-
-                    logger.info(f"Save the summary into {summary_path}")
-
+                # return the resources
                 self.cudas.add(cuda_visible_devices)
+                # keep task to recording summary in experiment
+                self.done_tasks.append(running)
+
             except Exception as e:
                 logger.exception(f"Thread encountered an error: {e}")
 
@@ -172,7 +164,9 @@ class Experiment:
         else:
             self.runs = Queue()
             [self.runs.put(i) for i in runs]
-            self.runs.put(None)
+
+        # control stop
+        self.runs.put(None)
 
         from concurrent.futures import as_completed, ThreadPoolExecutor
 
@@ -192,8 +186,43 @@ class Experiment:
                 except Exception as e:
                     logger.exception(f"Error processing a future: {e}")
 
-        time_consume = time.time() - start
-        logger.info(f"All tasks done, used {time_consume:.2f}s")
+        time_consume = f"{time.time() - start:.2f}"
+        logger.info(f"All tasks done, used {time_consume}s")
+
+        # <summary>
+        summary_path = "summary.json"
+        summary = []
+
+        # runs post-processing
+        for idx, run in enumerate(self.done_tasks):
+            run.output = str(run.output)
+            run.cwd = str(run.cwd)
+            run = asdict(run)
+            self.done_tasks[idx] = run
+
+        if os.path.exists(summary_path):
+            summary = json.load(open(summary_path))
+
+        summary.append(
+            {
+                "Experiment": givename(),
+                "time": time_consume,
+                "start": time.strftime("%Y-%m-%d__%H-%M-%S", time.localtime(start)),
+                "end": time.strftime("%Y-%m-%d__%H-%M-%S", time.localtime(time.time())),
+                "runs": self.done_tasks,
+            }
+        )
+
+        with open(summary_path, "w") as f:
+            json.dump(summary, f, indent=4, ensure_ascii=False)
+            logger.info(f"Save the summary into {summary_path}")
+
+
+def _csv_summary(summary):
+    summary_path = "summary.csv"
+    c = csv.DictWriter(open(summary_path, "w"), summary.keys())
+    c.writeheader()
+    c.writerow(summary)
 
 
 def run(func):
@@ -215,6 +244,7 @@ def runs(func):
     print(type(q))
 
     def wrapper():
+        # run in seperate process
         def inner():
             gen = func()  # Get the generator
             for value in gen:
@@ -222,6 +252,8 @@ def runs(func):
 
         process = Process(target=inner)
         process.start()
+        # need None to say stop
+        q.put(None)
         process.join()
 
         exp.launch(q)  # Process all items in the queue

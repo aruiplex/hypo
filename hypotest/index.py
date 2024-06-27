@@ -1,9 +1,13 @@
-from hypo import runs, Run
+from hypo import runs, Run, run_git_status
 
 
 @runs
 def method():
-    return [Run(name="a", cwd=".", output="./a", command="echo $cwd aaaaaa")]
+    return [
+        Run(name="a", cwd=".", output="./a", command="echo $cwd aaaaaa"),
+        run_git_status(),
+    ]
+
 
 @runs
 def methods():
