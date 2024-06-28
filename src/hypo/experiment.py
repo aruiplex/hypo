@@ -62,7 +62,7 @@ class Run:
     def _except_call_back(self, e: Exception):
         logger.exception(f"Error\n{self.command}")
         logger.exception(e)
-        shutil.rmtree(self.output)
+        # shutil.rmtree(self.output)
         logger.exception(f"removed the output: {self.output}")
 
     def __str__(self):
@@ -165,9 +165,6 @@ class Experiment:
             self.runs = Queue()
             [self.runs.put(i) for i in runs]
 
-        # control stop
-        self.runs.put(None)
-
         from concurrent.futures import as_completed, ThreadPoolExecutor
 
         if max_workers is None:
@@ -232,7 +229,8 @@ def run(max_workers=2):
         exp = Experiment()
 
         def wrapper():
-            result = func()
+            result: list = func()
+            result.append(None)
             exp.launch(result, max_workers)
             return result
 
@@ -253,13 +251,15 @@ def runs(max_workers=2):
             def processing():
                 gen = func()  # Get the generator
                 for value in gen:
+                    # logger.info(f"Put into queue: {value}")
                     q.put(value)  # Put each value into the queue
+
+                # need None to say stop
+                q.put(None)
 
             process = Process(target=processing)
             process.start()
-            # need None to say stop
-            q.put(None)
-            process.join()
+            # process.join()  # donot join here, no need for waiting for the processing() done
 
             exp.launch(q, max_workers)  # Process all items in the queue
 
