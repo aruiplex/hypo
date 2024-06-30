@@ -107,23 +107,33 @@ class Experiment:
         """
 
         while True:
-            try:
-                running: Run = self.runs.get()
-                if running is None:  # Check for the end signal
-                    self.runs.put(None)  # Propagate the end signal for other workers
-                    break
+            running_candidate: Run = self.runs.get()
+            if running_candidate is None:  # Check for the end signal
+                self.runs.put(None)  # Propagate the end signal for other workers
+                break
 
-                logger.info(f"LAUNCH:\n{pprint.pformat(asdict(running))}")
-                start_time = time.time()
+            # add running candidate to control the list of Run.
+            if isinstance(running_candidate, list):
+                s = "\n".join([pprint.pformat(asdict(x)) for x in running_candidate])
+                logger.info(f"LAUNCH a  Sequence:\n{s}")
 
-                # <resource-control> use env to control the using resouces & control the processing
-                # each thread should have its own copy of local variables.
-                env = os.environ.copy()
-                cuda_visible_devices = self.cudas.pop()
-                env["CUDA_VISIBLE_DEVICES"] = str(cuda_visible_devices)
-                # </resource-control>
+            elif isinstance(running_candidate, Run):
+                logger.info(f"LAUNCH:\n{pprint.pformat(asdict(running_candidate))}")
+                running_candidate = [running_candidate]
+            else:
+                raise Exception("Running should be list[Run] or Run.")
 
-                # <launch>
+            start_time = time.time()
+
+            # <resource-control> use env to control the using resouces & control the processing
+            # each thread should have its own copy of local variables.
+            env = os.environ.copy()
+            cuda_visible_devices = self.cudas.pop()
+            env["CUDA_VISIBLE_DEVICES"] = str(cuda_visible_devices)
+            # </resource-control>
+
+            # <launch>
+            for running in running_candidate:
                 try:
                     subprocess.run(
                         running.command,
@@ -152,8 +162,6 @@ class Experiment:
                 # keep task to recording summary in experiment
                 self.done_tasks.append(running)
 
-            except Exception as e:
-                logger.exception(f"Thread encountered an error: {e}")
 
     def launch(self, runs, max_workers=None):
         """
