@@ -7,24 +7,23 @@ Run your complex prompt experiments in System-level invoke.
 from hypo import run, runs, Run
 
 
-# Use one thread to collect the tasks. 
+# Use one thread to collect the tasks.
 @run
 def trial():
     return [Run(command="echo this_is_a_very_complex_prompt_to_start_your_experiment_in_bash", name="echo", cwd=".", output=".")]
 
 
-# Use multiprocessing to collect the tasks. 
+# Use multiprocessing to collect the tasks.
 @runs
 def trials():
     for i in range(10):
         yield Run(command="sleep 5", name="compute", cwd=".", output=".")
-        time.sleep(2) # preparing 
+        time.sleep(2) # preparing
 ```
-
 
 Then you can start your task parallel.
 
-```bash 
+```bash
 # hypo <dir_name> <function_name>
 
 hypo epoch trial # to start method trial. Create tasks, then run.
@@ -42,28 +41,28 @@ After running all experiments, you can check the task summary in the output fold
 
 ```json
 [
-    {
-        "Experiment": "2024-06-27__18-35-21",
-        "time": "0.00",
-        "start": "2024-06-27__18-35-21",
-        "end": "2024-06-27__18-35-21",
-        "runs": [
-            {
-                "name": "a",
-                "command": "echo $cwd aaaaaa",
-                "cwd": "/data/Hypothesis/hypo",
-                "output": "/data/Hypothesis/hypo/a",
-                "datetime": "2024-06-27__18-35-21"
-            },
-            {
-                "name": "Git Version",
-                "command": "git rev-parse HEAD",
-                "cwd": "/data/Hypothesis/hypo",
-                "output": "/data/Hypothesis/hypo",
-                "datetime": "2024-06-27__18-35-21"
-            }
-        ]
-    }
+  {
+    "Experiment": "2024-06-27__18-35-21",
+    "time": "0.00",
+    "start": "2024-06-27__18-35-21",
+    "end": "2024-06-27__18-35-21",
+    "runs": [
+      {
+        "name": "a",
+        "command": "echo $cwd aaaaaa",
+        "cwd": "/data/Hypothesis/hypo",
+        "output": "/data/Hypothesis/hypo/a",
+        "datetime": "2024-06-27__18-35-21"
+      },
+      {
+        "name": "Git Version",
+        "command": "git rev-parse HEAD",
+        "cwd": "/data/Hypothesis/hypo",
+        "output": "/data/Hypothesis/hypo",
+        "datetime": "2024-06-27__18-35-21"
+      }
+    ]
+  }
 ]
 ```
 
@@ -83,4 +82,24 @@ def method():
 
 ```
 
+If you want to run the command in a specific git version, you can use `run_git_checkout`.
 
+```python
+
+from hypo import run, run_git_checkout, Run
+
+
+@run()
+def test_run_git_checkout():
+    return [
+        [
+            run_git_checkout("a6bb0c3"),
+            Run(command="python main.py", output=".", cwd=".", name="run1"),
+        ],
+        [
+            run_git_checkout("483a83f"),
+            Run(command="python main.py", output=".", cwd=".", name="run2"),
+        ],
+    ]
+
+```

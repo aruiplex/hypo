@@ -17,6 +17,7 @@ from loguru import logger
 from .resources import CUDAs, Resources, GlobalResources
 from time import strftime, localtime
 
+
 def givename(value=None):
     # zoneinfo is a standard library since python 3.9
     if value is None or value in ["", " "]:
@@ -49,7 +50,7 @@ class Run:
 
     name: str
     command: str
-    resource: Resources = None # do not represent in asdict
+    resource: Resources = None  # do not represent in asdict
     # The cwd for process start.
     cwd: str = "."
     output: str = "."
@@ -68,13 +69,24 @@ class Run:
         return pprint.pformat(self.asdict())
 
     def asdict(self):
-        return {
+        d = {
             "name": self.name,
             "command": self.command,
             "cwd": str(self.cwd),
             "output": str(self.output),
             "datetime": self.datetime,
         }
+        if hasattr(self, "time_consume"):
+            d["time_consume"] = self.time_consume
+        if hasattr(self, "finish_at"):
+            d["finish_at"] = self.finish_at
+        if hasattr(self, "resource"):
+            d["resource"] = self.resource.__class__.__name__
+        if hasattr(self, "input"):
+            d["input"] = str(self.input)
+
+        return d
+
 
 class Experiment:
     """
@@ -182,7 +194,7 @@ class Experiment:
         Run the experiments in parallel using processes.
         """
         self.runs = runs
-        
+
         assert isinstance(self.runs, list), "The runs should be list."
 
         if max_workers is None:
@@ -210,8 +222,6 @@ class Experiment:
 
         # runs post-processing
         for idx, run in enumerate(self.done_tasks):
-            run.output = str(run.output)
-            run.cwd = str(run.cwd)
             run = run.asdict()
             self.done_tasks[idx] = run
 
@@ -263,7 +273,7 @@ def runs(max_workers=2):
     def inner(func):
         def wrapper():
             exp = Experiment()
-            q = [] # maybe a queue
+            q = []  # maybe a queue
 
             # run in seperate process
             def processing():
