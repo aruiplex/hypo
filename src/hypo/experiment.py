@@ -2,7 +2,8 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict, field
 import os
 import shutil
-from multiprocessing import Queue, queues, Process
+from multiprocessing import Process, Queue, queues
+from concurrent.futures import as_completed, ThreadPoolExecutor
 import subprocess
 import sys
 import time
@@ -13,9 +14,8 @@ import datetime
 import csv
 import pprint
 from loguru import logger
-from .cudas import CUDAs
+from .resources import CUDAs, Resources, GlobalResources
 from time import strftime, localtime
-
 
 def givename(value=None):
     # zoneinfo is a standard library since python 3.9
@@ -49,6 +49,7 @@ class Run:
 
     name: str
     command: str
+    resource: Resources = None # do not represent in asdict
     # The cwd for process start.
     cwd: str = "."
     output: str = "."
@@ -61,13 +62,19 @@ class Run:
 
     def _except_call_back(self, e: Exception):
         logger.exception(f"Error\n{self.command}")
-        logger.exception(e)
-        # shutil.rmtree(self.output)
-        logger.exception(f"removed the output: {self.output}")
+        # logger.exception(e)
 
     def __str__(self):
-        return pprint.pformat(asdict(self))
+        return pprint.pformat(self.asdict())
 
+    def asdict(self):
+        return {
+            "name": self.name,
+            "command": self.command,
+            "cwd": str(self.cwd),
+            "output": str(self.output),
+            "datetime": self.datetime,
+        }
 
 class Experiment:
     """
@@ -88,9 +95,9 @@ class Experiment:
     # The argparse args for experiments.
     args: list = None
     # a pipe to recv task from producer and consume the task to worker.
-    runs: Queue
+    runs: list
     # a record, to create summary.
-    done_tasks = []
+    done_tasks: list[Run] = []
 
     def __init__(self, args: list = None) -> None:
 
@@ -103,22 +110,22 @@ class Experiment:
     def worker(self):
         """
         A threading safe method. The launch is not threading safe.
-        Continuously fetches and processes tasks from the queue.
+        Continuously fetches and processes tasks from the list.
         """
 
         while True:
-            running_candidate: Run = self.runs.get()
+            running_candidate: Run = self.runs.pop(0)
             if running_candidate is None:  # Check for the end signal
-                self.runs.put(None)  # Propagate the end signal for other workers
+                self.runs.append(None)  # Propagate the end signal for other workers
                 break
 
             # add running candidate to control the list of Run.
             if isinstance(running_candidate, list):
-                s = "\n".join([pprint.pformat(asdict(x)) for x in running_candidate])
-                logger.info(f"LAUNCH a  Sequence:\n{s}")
+                s = "\n".join([pprint.pformat(x.asdict()) for x in running_candidate])
+                logger.info(f"[LAUNCH Sequence]\n{s}")
 
             elif isinstance(running_candidate, Run):
-                logger.info(f"LAUNCH:\n{pprint.pformat(asdict(running_candidate))}")
+                logger.info(f"[LAUNCH]\n{pprint.pformat(running_candidate.asdict())}")
                 running_candidate = [running_candidate]
             else:
                 raise Exception("Running should be list[Run] or Run.")
@@ -128,12 +135,16 @@ class Experiment:
             # <resource-control> use env to control the using resouces & control the processing
             # each thread should have its own copy of local variables.
             env = os.environ.copy()
-            cuda_visible_devices = self.cudas.pop()
+            cuda_visible_devices = self.cudas.acquire()
             env["CUDA_VISIBLE_DEVICES"] = str(cuda_visible_devices)
             # </resource-control>
 
             # <launch>
             for running in running_candidate:
+                running: Run
+                # check the resource is meet the requirement.
+                if running.resource is not None:
+                    running.resource.acquire()
                 try:
                     subprocess.run(
                         running.command,
@@ -145,35 +156,34 @@ class Experiment:
                         check=True,
                     )
                 except Exception as e:
-                    running._except_call_back(e)
+                    # running._except_call_back(e)
+                    print(e)
 
+                if running.resource is not None:
+                    running.resource.release()
                 # </launch>
 
                 # time consuming
                 t = time.time() - start_time
-                logger.info(f"{running.command} finished in {t:.1f}s.")
+                logger.info(f"[FINISH {t:.1f}s] {running.command}")
                 running.time_consume = str(datetime.timedelta(seconds=t))
                 running.finish_at = datetime.datetime.now().strftime(
                     "%Y-%m-%d__%H-%M-%S"
                 )
 
                 # return the resources
-                self.cudas.add(cuda_visible_devices)
+                self.cudas.release(cuda_visible_devices)
                 # keep task to recording summary in experiment
                 self.done_tasks.append(running)
 
 
-    def launch(self, runs, max_workers=None):
+    def launch(self, runs: list, max_workers=None):
         """
         Run the experiments in parallel using processes.
         """
-        if isinstance(runs, queues.Queue):
-            self.runs = runs
-        else:
-            self.runs = Queue()
-            [self.runs.put(i) for i in runs]
-
-        from concurrent.futures import as_completed, ThreadPoolExecutor
+        self.runs = runs
+        
+        assert isinstance(self.runs, list), "The runs should be list."
 
         if max_workers is None:
             max_workers = len(GPUtil.getGPUs())
@@ -189,7 +199,7 @@ class Experiment:
                 try:
                     future.result()
                 except Exception as e:
-                    logger.exception(f"Error processing a future: {e}")
+                    logger.exception(e)
 
         time_consume = f"{time.time() - start:.2f}"
         logger.info(f"All tasks done, used {time_consume}s")
@@ -202,7 +212,7 @@ class Experiment:
         for idx, run in enumerate(self.done_tasks):
             run.output = str(run.output)
             run.cwd = str(run.cwd)
-            run = asdict(run)
+            run = run.asdict()
             self.done_tasks[idx] = run
 
         if os.path.exists(summary_path):
@@ -253,17 +263,17 @@ def runs(max_workers=2):
     def inner(func):
         def wrapper():
             exp = Experiment()
-            q = Queue()
+            q = [] # maybe a queue
 
             # run in seperate process
             def processing():
                 gen = func()  # Get the generator
                 for value in gen:
                     # logger.info(f"Put into queue: {value}")
-                    q.put(value)  # Put each value into the queue
+                    q.append(value)  # Put each value into the queue
 
                 # need None to say stop
-                q.put(None)
+                q.append(None)
 
             process = Process(target=processing)
             process.start()

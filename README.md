@@ -1,16 +1,19 @@
-# Hypo, cli tool to run os command.
+# Hypo is a CLI tool to run OS commands.
 
-Run you complex prompt experiments in System level invoke.
+Run your complex prompt experiments in System-level invoke.
 
 ```python
-# In epoch/trial.py
+# In the file epoch/index.py
 from hypo import run, runs, Run
 
 
+# Use one thread to collect the tasks. 
 @run
 def trial():
     return [Run(command="echo this_is_a_very_complex_prompt_to_start_your_experiment_in_bash", name="echo", cwd=".", output=".")]
 
+
+# Use multiprocessing to collect the tasks. 
 @runs
 def trials():
     for i in range(10):
@@ -22,12 +25,20 @@ def trials():
 Then you can start your task parallel.
 
 ```bash 
+# hypo <dir_name> <function_name>
+
 hypo epoch trial # to start method trial. Create tasks, then run.
 
 hypo epoch trials # to start method trials. Parallel create tasks and run.
 ```
 
-After run all experiments, you could check the task summary in the output folder named `summary.json`.
+Or, directly call the function you need.
+
+```python
+trial()
+```
+
+After running all experiments, you can check the task summary in the output folder named `summary.json`.
 
 ```json
 [

@@ -3,16 +3,35 @@ import threading
 from loguru import logger
 
 
-class Rources:
+class Resources:
     def __len__(self):
         pass
 
-    def add(self, idx: int):
+    def release(self, idx: int):
         pass
 
-    def pop(self) -> int:
+    def acquire(self) -> int:
         pass
 
+
+class GlobalResources(Resources):
+    # only one task could get the resource at the same time. Eg, git 
+    
+    def __init__(self, name="global-lock-233") -> None:
+        self.lock = threading.Lock()
+
+    def __len__(self):
+        if self.lock.locked():
+            return 0
+        else:
+            return 1
+    
+    def acquire(self) -> int:
+        return self.lock.acquire()
+        
+    def release(self, idx: int=0):
+        self.lock.release()
+        
 
 # class CUDAs:
 #     """Dispatch tasks to different CUDA devices with load balancing.
@@ -55,7 +74,7 @@ class Rources:
 #                 )
 
 
-class CUDAs(Rources):
+class CUDAs(Resources):
     """Dispatch the tasks to the different cudas."""
 
     def __init__(self, max_workers=None) -> None:
@@ -70,10 +89,10 @@ class CUDAs(Rources):
     def __len__(self):
         return len(self.cudas)
 
-    def pop(self) -> int:
+    def acquire(self) -> int:
         with self.lock:
             return self.cudas.pop()
 
-    def add(self, idx):
+    def release(self, idx):
         with self.lock:
             self.cudas.add(idx)
