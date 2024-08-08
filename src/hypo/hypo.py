@@ -9,9 +9,8 @@ def main():
     from .experiment import Experiment
     from .cfg import args, subargs
 
-    load_module = args.expName + "index"
     # load the index file of the theorm. The index file contains the Experiment class.
-    module = importlib.import_module(load_module)
+    module = importlib.import_module(args.load_module)
     # experiment: BaseExperiment = module.Experiment(subargs)
 
     # the method function in the Experiment class.

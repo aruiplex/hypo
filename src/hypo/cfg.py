@@ -7,13 +7,6 @@ parser = argparse.ArgumentParser(
     epilog="Enjoy the training",
 )
 parser.add_argument(
-    "expName",
-    type=str,
-    nargs='?',
-    default="",
-    help="Experiment name",
-)
-parser.add_argument(
     "method",
     type=str,
 )
@@ -21,8 +14,9 @@ parser.add_argument(
 # There could be unknown args, so use parse_known_args
 args, subargs = parser.parse_known_args()
 
-if args.expName != "":
-    args.expName = args.expName + "."
+if "." in args.method:
+    args.load_module, args.method = args.method.rsplit(".", 1)
+else:
+    args.load_module = "index"
 
-logger.info(f"\033[34m[Hypo]: {args}")
-logger.info(f"\033[34m[Experiments args]: {subargs}")
+logger.info(f"\033[34m[Hypo]: {args}. [Experiments args]: {subargs}")

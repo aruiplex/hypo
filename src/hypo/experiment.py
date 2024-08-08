@@ -256,8 +256,8 @@ def run(max_workers=2):
     def inner(func):
         exp = Experiment()
 
-        def wrapper():
-            result: list = func()
+        def wrapper(*args):
+            result: list = func(*args)
             result.append(None)
             exp.launch(result, max_workers)
             return result
@@ -271,13 +271,13 @@ def runs(max_workers=2):
     """Decorator. Run the experiments yield"""
 
     def inner(func):
-        def wrapper():
+        def wrapper(*args):
             exp = Experiment()
             q = []  # maybe a queue
 
             # run in seperate process
             def processing():
-                gen = func()  # Get the generator
+                gen = func(*args)  # Get the generator
                 for value in gen:
                     # logger.info(f"Put into queue: {value}")
                     q.append(value)  # Put each value into the queue
