@@ -88,7 +88,7 @@ class CUDAs(Resources):
             cudas = visible_devices
 
         logger.info(f"Visible GPUs: {visible_devices}")
-        self.cudas = [list(cudas)[i % len(cudas)] for i in range(max_workers)]
+        self.cudas = {list(cudas)[i % len(cudas)] for i in range(max_workers)}
 
         if max_workers > len(cudas):
             logger.warning(
@@ -105,9 +105,4 @@ class CUDAs(Resources):
 
     def release(self, idx):
         with self.lock:
-            if isinstance(self.cudas, set):
-                self.cudas.add(idx)
-            elif isinstance(self.cudas, list):
-                self.cudas.append(idx)
-            else:
-                raise Exception("The cudas should be set or list.")
+            self.cudas.add(idx)
