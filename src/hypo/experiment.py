@@ -6,6 +6,7 @@ from multiprocessing import Process, Queue, queues
 from concurrent.futures import as_completed, ThreadPoolExecutor
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 import GPUtil
@@ -80,6 +81,8 @@ class Run:
             d["time_consume"] = self.time_consume
         if hasattr(self, "finish_at"):
             d["finish_at"] = self.finish_at
+        if hasattr(self, "start_at"):
+            d["start_at"] = self.start_at
         if hasattr(self, "resource"):
             d["resource"] = self.resource.__class__.__name__
         if hasattr(self, "input"):
@@ -92,6 +95,8 @@ class Experiment:
     """
     Is a container for Run class. Main function is "launch" the Runs.
     """
+
+    summary_lock = threading.Lock()  # Use this to synchronize summary file writing
 
     # ===== For human =====
     # The title for this experiment.
@@ -108,8 +113,6 @@ class Experiment:
     args: list = None
     # a pipe to recv task from producer and consume the task to worker.
     runs: list
-    # a record, to create summary.
-    done_tasks: list[Run] = []
 
     def __init__(self, args: list = None) -> None:
 
@@ -131,7 +134,6 @@ class Experiment:
                 self.runs.append(None)  # Propagate the end signal for other workers
                 break
 
-            # add running candidate to control the list of Run.
             if isinstance(running_candidate, list):
                 s = "\n".join([pprint.pformat(x.asdict()) for x in running_candidate])
                 logger.info(f"[LAUNCH Sequence]\n{s}")
@@ -145,16 +147,14 @@ class Experiment:
             start_time = time.time()
 
             # <resource-control> use env to control the using resouces & control the processing
-            # each thread should have its own copy of local variables.
             env = os.environ.copy()
             cuda_visible_devices = self.cudas.acquire()
             env["CUDA_VISIBLE_DEVICES"] = str(cuda_visible_devices)
-            # </resource-control>
 
             # <launch>
             for running in running_candidate:
                 running: Run
-                # check the resource is meet the requirement.
+                running.start_at = start_time
                 if running.resource is not None:
                     running.resource.acquire()
                 try:
@@ -168,14 +168,12 @@ class Experiment:
                         check=True,
                     )
                 except Exception as e:
-                    # running._except_call_back(e)
                     print(e)
 
                 if running.resource is not None:
                     running.resource.release()
                 # </launch>
 
-                # time consuming
                 t = time.time() - start_time
                 logger.info(f"[FINISH {t:.1f}s] {running.command}")
                 running.time_consume = str(datetime.timedelta(seconds=t))
@@ -183,10 +181,49 @@ class Experiment:
                     "%Y-%m-%d__%H-%M-%S"
                 )
 
-                # return the resources
                 self.cudas.release(cuda_visible_devices)
-                # keep task to recording summary in experiment
-                self.done_tasks.append(running)
+
+            # Update the summary after every task
+            self.update_summary(running_candidate)
+
+    def update_summary(self, run):
+        """Updates the summary file with the latest run information."""
+
+        def to_summary(run):
+            time_consume = f"{time.time() - run.start_at:.2f}"
+            return {
+                "Experiment": givename(),
+                "time": time_consume,
+                "start": time.strftime(
+                    "%Y-%m-%d__%H-%M-%S", time.localtime(run.start_at)
+                ),
+                "end": time.strftime("%Y-%m-%d__%H-%M-%S", time.localtime(time.time())),
+                "run": run.asdict(),
+            }
+
+        summary_path = "summary.json"
+
+        # Make sure to synchronize access to the summary file across threads
+        with self.summary_lock:
+            summary = []
+            if os.path.exists(summary_path):
+                with open(summary_path, "r") as f:
+                    summary = json.load(f)
+
+            # Check if `run` is a list of runs or a single run instance
+            if isinstance(run, list):
+                for single_run in run:
+                    summary.append(to_summary(run=single_run))
+            else:
+                # If it's a single Run object
+                summary.append(to_summary(run=run))
+
+            # Write the updated summary back to the file
+            with open(summary_path, "w") as f:
+                json.dump(summary, f, indent=4, ensure_ascii=False)
+                logger.info(
+                    f"Updated the summary with {run if isinstance(run, list) else run.name} into {summary_path}"
+                )
 
     def launch(self, runs: list, visible_devices=None, max_workers=None):
         """
@@ -204,7 +241,6 @@ class Experiment:
         self.cudas = CUDAs(visible_devices=visible_devices, max_workers=max_workers)
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Create a list of futures from the process executor
             futures = [executor.submit(self.worker) for _ in range(max_workers)]
             for future in as_completed(futures):
                 try:
@@ -214,32 +250,6 @@ class Experiment:
 
         time_consume = f"{time.time() - start:.2f}"
         logger.info(f"All tasks done, used {time_consume}s")
-
-        # <summary>
-        summary_path = "summary.json"
-        summary = []
-
-        # runs post-processing
-        for idx, run in enumerate(self.done_tasks):
-            run = run.asdict()
-            self.done_tasks[idx] = run
-
-        if os.path.exists(summary_path):
-            summary = json.load(open(summary_path))
-
-        summary.append(
-            {
-                "Experiment": givename(),
-                "time": time_consume,
-                "start": time.strftime("%Y-%m-%d__%H-%M-%S", time.localtime(start)),
-                "end": time.strftime("%Y-%m-%d__%H-%M-%S", time.localtime(time.time())),
-                "runs": self.done_tasks,
-            }
-        )
-
-        with open(summary_path, "w") as f:
-            json.dump(summary, f, indent=4, ensure_ascii=False)
-            logger.info(f"Save the summary into {summary_path}")
 
 
 def _csv_summary(summary):
@@ -291,7 +301,7 @@ def runs(visible_devices=None, max_workers=None):
             # process.join()  # donot join here, no need for waiting for the processing() done
 
             # Process all items in the queue
-            exp.launch(q, visible_devices=visible_devices, max_workers=max_workers)  
+            exp.launch(q, visible_devices=visible_devices, max_workers=max_workers)
 
         return wrapper
 
