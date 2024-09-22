@@ -17,6 +17,7 @@ import pprint
 from loguru import logger
 from .resources import CUDAs, Resources, GlobalResources
 from time import strftime, localtime
+from alive_progress import alive_bar
 
 
 def givename(value=None):
@@ -185,6 +186,7 @@ class Experiment:
 
             # Update the summary after every task
             self.update_summary(running_candidate)
+            self.bar()
 
     def update_summary(self, run):
         """Updates the summary file with the latest run information."""
@@ -229,23 +231,20 @@ class Experiment:
         logger.info(f"max workers: {max_workers}")
         start = time.time()
         self.cudas = CUDAs(visible_devices=visible_devices, max_workers=max_workers)
+        num = len(self.runs) - 1
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(self.worker) for _ in range(max_workers)]
-            for future in as_completed(futures):
-                try:
-                    future.result()
-                except Exception as e:
-                    logger.exception(e)
+            with alive_bar(num, title="Hypo Progress") as bar:
+                self.bar = bar
+                futures = [executor.submit(self.worker) for _ in range(max_workers)]
+                for future in as_completed(futures):
+                    try:
+                        future.result()
+                    except Exception as e:
+                        logger.exception(e)
 
         time_consume = f"{time.time() - start:.2f}"
         logger.info(f"All tasks done, used {time_consume}s")
 
-
-def _csv_summary(summary):
-    summary_path = "summary.csv"
-    c = csv.DictWriter(open(summary_path, "w"), summary.keys())
-    c.writeheader()
-    c.writerow(summary)
 
 
 def run(visible_devices=None, max_workers=None):
