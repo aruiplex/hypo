@@ -144,8 +144,6 @@ class Experiment:
             else:
                 raise Exception("Running should be list[Run] or Run.")
 
-            start_time = time.time()
-
             # <resource-control> use env to control the using resouces & control the processing
             env = os.environ.copy()
             cuda_visible_devices = self.cudas.acquire()
@@ -154,7 +152,10 @@ class Experiment:
             # <launch>
             for running in running_candidate:
                 running: Run
-                running.start_at = start_time
+                start_time = time.time()
+                running.start_at = datetime.datetime.now().strftime(
+                    "%Y-%m-%d__%H-%M-%S"
+                )
                 if running.resource is not None:
                     running.resource.acquire()
                 try:
@@ -180,7 +181,6 @@ class Experiment:
                 running.finish_at = datetime.datetime.now().strftime(
                     "%Y-%m-%d__%H-%M-%S"
                 )
-
                 self.cudas.release(cuda_visible_devices)
 
             # Update the summary after every task
@@ -188,19 +188,6 @@ class Experiment:
 
     def update_summary(self, run):
         """Updates the summary file with the latest run information."""
-
-        def to_summary(run):
-            time_consume = f"{time.time() - run.start_at:.2f}"
-            return {
-                "Experiment": givename(),
-                "time": time_consume,
-                "start": time.strftime(
-                    "%Y-%m-%d__%H-%M-%S", time.localtime(run.start_at)
-                ),
-                "end": time.strftime("%Y-%m-%d__%H-%M-%S", time.localtime(time.time())),
-                "run": run.asdict(),
-            }
-
         summary_path = "summary.json"
 
         # Make sure to synchronize access to the summary file across threads
@@ -212,11 +199,14 @@ class Experiment:
 
             # Check if `run` is a list of runs or a single run instance
             if isinstance(run, list):
+                sub_summary = []
                 for single_run in run:
-                    summary.append(to_summary(run=single_run))
+                    sub_summary.append(single_run.asdict())
+                summary.append(sub_summary)
+
             else:
                 # If it's a single Run object
-                summary.append(to_summary(run=run))
+                summary.append(run.asdict())
 
             # Write the updated summary back to the file
             with open(summary_path, "w") as f:
@@ -239,7 +229,6 @@ class Experiment:
         logger.info(f"max workers: {max_workers}")
         start = time.time()
         self.cudas = CUDAs(visible_devices=visible_devices, max_workers=max_workers)
-
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(self.worker) for _ in range(max_workers)]
             for future in as_completed(futures):

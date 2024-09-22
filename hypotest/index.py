@@ -15,7 +15,7 @@ def trials():
         time.sleep(2)  # preparing
 
 
-@run(max_workers=2)
+@run({0, 1}, max_workers=2)
 def run_list():
     return [
         [
