@@ -26,7 +26,7 @@ build-backend = "setuptools.build_meta" # If not defined, then legacy behavior c
 # There are some restrictions on what makes a valid project name
 # specification here:
 # https://packaging.python.org/specifications/core-metadata/#name
-name = "hypo-core" # REQUIRED, is the only field that cannot be marked as dynamic.
+name = "hypo-run" # REQUIRED, is the only field that cannot be marked as dynamic.
 
 # Versions should comply with PEP 440:
 # https://www.python.org/dev/peps/pep-0440/
@@ -114,7 +114,7 @@ classifiers = [
 #
 # For an analysis of this field vs pip's requirements files see:
 # https://packaging.python.org/discussions/install-requires-vs-requirements/
-dependencies = ["loguru","GPUtil","pandas", "torchshow"]
+dependencies = ["loguru","GPUtil"]
 
 # List additional groups of dependencies here (e.g. development
 # dependencies). Users will be able to install these using the "extras"
@@ -125,8 +125,8 @@ dependencies = ["loguru","GPUtil","pandas", "torchshow"]
 # Optional dependencies the project provides. These are commonly 
 # referred to as "extras". For a more extensive definition see:
 # https://packaging.python.org/en/latest/specifications/dependency-specifiers/#extras
-# [project.optional-dependencies]
-# dev = ["check-manifest"]
+[project.optional-dependencies]
+dev = ["pandas", "torchshow"]
 # test = ["coverage"]
 
 # List URLs that are relevant to your project
@@ -140,11 +140,11 @@ dependencies = ["loguru","GPUtil","pandas", "torchshow"]
 # maintainers, and where to support the project financially. The key is
 # what's used to render the link text on PyPI.
 [project.urls]
-"Homepage" = "https://github.com/pypa/sampleproject"
-"Bug Reports" = "https://github.com/pypa/sampleproject/issues"
-"Funding" = "https://donate.pypi.org"
-"Say Thanks!" = "http://saythanks.io/to/example"
-"Source" = "https://github.com/pypa/sampleproject/"
+"Homepage" = "https://github.com/aruiplex/hypo"
+"Bug Reports" = "https://github.com/aruiplex/hypo"
+"Funding" = "https://github.com/aruiplex/hypo"
+"Say Thanks!" = "https://github.com/aruiplex/hypo"
+"Source" = "https://github.com/aruiplex/hypo"
 
 # The following would provide a command line executable called `sample`
 # which executes the function `main` from this package when invoked.

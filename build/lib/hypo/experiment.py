@@ -147,8 +147,8 @@ class Experiment:
             # <resource-control> use env to control the using resouces & control the processing
             # each thread should have its own copy of local variables.
             env = os.environ.copy()
-            cuda_visible_devices = self.cudas.acquire()
-            env["CUDA_VISIBLE_DEVICES"] = str(cuda_visible_devices)
+            cuda_cuda_visible_devices = self.cudas.acquire()
+            env["CUDA_cuda_visible_devices"] = str(cuda_cuda_visible_devices)
             # </resource-control>
 
             # <launch>
@@ -184,11 +184,11 @@ class Experiment:
                 )
 
                 # return the resources
-                self.cudas.release(cuda_visible_devices)
+                self.cudas.release(cuda_cuda_visible_devices)
                 # keep task to recording summary in experiment
                 self.done_tasks.append(running)
 
-    def launch(self, runs: list, visible_devices=None, max_workers=None):
+    def launch(self, runs: list, cuda_visible_devices=None, max_workers=None):
         """
         Run the experiments in parallel using processes.
         """
@@ -201,7 +201,7 @@ class Experiment:
 
         logger.info(f"max workers: {max_workers}")
         start = time.time()
-        self.cudas = CUDAs(visible_devices=visible_devices, max_workers=max_workers)
+        self.cudas = CUDAs(cuda_visible_devices=cuda_visible_devices, max_workers=max_workers)
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Create a list of futures from the process executor
@@ -249,7 +249,7 @@ def _csv_summary(summary):
     c.writerow(summary)
 
 
-def run(visible_devices=None, max_workers=None):
+def run(cuda_visible_devices=None, max_workers=None):
     """Decorator. Run the experiments list"""
 
     def inner(func):
@@ -260,7 +260,7 @@ def run(visible_devices=None, max_workers=None):
             assert isinstance(result, list), "The result should be list."
             # assert all([isinstance(x, Run) for x in result]), "The result should be list of Run."
             result.append(None)
-            exp.launch(result, visible_devices=visible_devices, max_workers=max_workers)
+            exp.launch(result, cuda_visible_devices=cuda_visible_devices, max_workers=max_workers)
             return result
 
         return wrapper
@@ -268,7 +268,7 @@ def run(visible_devices=None, max_workers=None):
     return inner
 
 
-def runs(visible_devices=None, max_workers=None):
+def runs(cuda_visible_devices=None, max_workers=None):
     """Decorator. Run the experiments yield"""
 
     def inner(func):
@@ -291,7 +291,7 @@ def runs(visible_devices=None, max_workers=None):
             # process.join()  # donot join here, no need for waiting for the processing() done
 
             # Process all items in the queue
-            exp.launch(q, visible_devices=visible_devices, max_workers=max_workers)  
+            exp.launch(q, cuda_visible_devices=cuda_visible_devices, max_workers=max_workers)  
 
         return wrapper
 

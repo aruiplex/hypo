@@ -11,7 +11,7 @@ def run_git_status():
 def run_git_checkout(version: str):
     return Run(
         name="Git Checkout",
-        command=f"sleep 5 && git checkout \"{version}\" && sleep 5",
+        command=f"sleep 2 && git checkout \"{version}\" && sleep 5",
         output=".",
         cwd=".",
         resource=git_lock,

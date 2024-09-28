@@ -77,17 +77,17 @@ class GlobalResources(Resources):
 class CUDAs(Resources):
     """Dispatch the tasks to the different cudas."""
 
-    def __init__(self, visible_devices=None, max_workers=1) -> None:
+    def __init__(self, cuda_visible_devices=None, max_workers=1) -> None:
         self.lock = threading.Lock()
-        if visible_devices is None:
+        if cuda_visible_devices is None:
             cudas = set(GPUtil.getAvailable(limit=8))
         else:
             assert isinstance(
-                visible_devices, set
+                cuda_visible_devices, set
             ), "The visible devices should be set."
-            cudas = visible_devices
+            cudas = cuda_visible_devices
 
-        logger.info(f"Visible GPUs: {visible_devices}")
+        logger.info(f"Visible GPUs: {cuda_visible_devices}")
         self.cudas = [list(cudas)[i % len(cudas)] for i in range(max_workers)]
 
         if max_workers > len(cudas):

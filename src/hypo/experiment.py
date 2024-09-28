@@ -147,8 +147,8 @@ class Experiment:
 
             # <resource-control> use env to control the using resouces & control the processing
             env = os.environ.copy()
-            cuda_visible_devices = self.cudas.acquire()
-            env["CUDA_VISIBLE_DEVICES"] = str(cuda_visible_devices)
+            cuda_cuda_visible_devices = self.cudas.acquire()
+            env["CUDA_cuda_visible_devices"] = str(cuda_cuda_visible_devices)
 
             # <launch>
             for running in running_candidate:
@@ -182,7 +182,7 @@ class Experiment:
                 running.finish_at = datetime.datetime.now().strftime(
                     "%Y-%m-%d__%H-%M-%S"
                 )
-                self.cudas.release(cuda_visible_devices)
+                self.cudas.release(cuda_cuda_visible_devices)
 
             # Update the summary after every task
             self.update_summary(running_candidate)
@@ -217,7 +217,7 @@ class Experiment:
                     f"Updated the summary with {run if isinstance(run, list) else run.name} into {summary_path}"
                 )
 
-    def launch(self, runs: list, visible_devices=None, max_workers=None):
+    def launch(self, runs: list, cuda_visible_devices=None, max_workers=None):
         """
         Run the experiments in parallel using processes.
         """
@@ -230,7 +230,7 @@ class Experiment:
 
         logger.info(f"max workers: {max_workers}")
         start = time.time()
-        self.cudas = CUDAs(visible_devices=visible_devices, max_workers=max_workers)
+        self.cudas = CUDAs(cuda_visible_devices=cuda_visible_devices, max_workers=max_workers)
         num = len(self.runs) - 1
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             with alive_bar(num, title="Hypo Progress") as bar:
@@ -247,7 +247,7 @@ class Experiment:
 
 
 
-def run(visible_devices=None, max_workers=None):
+def run(cuda_visible_devices=None, max_workers=None):
     """Decorator. Run the experiments list"""
 
     def inner(func):
@@ -258,7 +258,7 @@ def run(visible_devices=None, max_workers=None):
             assert isinstance(result, list), "The result should be list."
             # assert all([isinstance(x, Run) for x in result]), "The result should be list of Run."
             result.append(None)
-            exp.launch(result, visible_devices=visible_devices, max_workers=max_workers)
+            exp.launch(result, cuda_visible_devices=cuda_visible_devices, max_workers=max_workers)
             return result
 
         return wrapper
@@ -266,7 +266,7 @@ def run(visible_devices=None, max_workers=None):
     return inner
 
 
-def runs(visible_devices=None, max_workers=None):
+def runs(cuda_visible_devices=None, max_workers=None):
     """Decorator. Run the experiments yield"""
 
     def inner(func):
@@ -289,7 +289,7 @@ def runs(visible_devices=None, max_workers=None):
             # process.join()  # donot join here, no need for waiting for the processing() done
 
             # Process all items in the queue
-            exp.launch(q, visible_devices=visible_devices, max_workers=max_workers)
+            exp.launch(q, cuda_visible_devices=cuda_visible_devices, max_workers=max_workers)
 
         return wrapper
 
