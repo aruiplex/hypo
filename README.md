@@ -16,7 +16,7 @@ def trial():
 
 @run(max_workers=10) # run 10 tasks concurrently
 def trial():
-    return [Run(command="echo this_is_a_very_complex_prompt_to_start_your_experiment_in_bash", name="indicate your task")]
+    return [Run(command=f"echo {i}", name="echo 0 to 9") for i in range(10)]
 
 ```
 
@@ -108,7 +108,7 @@ You can use some pre-defined Run. for example, the `git version` using `run_git_
 ```python
 from hypo import runs, Run, run_git_status
 
-@runs
+@runs()
 def method():
     return [
         Run(name="a", cwd=".", output="./a", command="echo $cwd"),
@@ -138,3 +138,18 @@ def test_run_git_checkout():
     ]
 
 ```
+
+## Progress bar 
+
+A progress bar will be shown in the terminal. You can easily check the progress of your tasks. This progress bar will not block the log you printed in the processing.
+
+## Under the hood
+
+- Just use the `subprocess.run()` to run the command. 
+- Use the ThreadPoolExecutor to run the command concurrently.
+- Get the Run object from the queue and assign the command to the ThreadPoolExecutor by `max_workers`. 
+- To avoid the `git` conflict at the same time, the `GlobalResources` as the threading lock will be created.
+
+
+*Enjoy it to make the life easier.*
+
