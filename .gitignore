@@ -12,3 +12,5 @@
 
 *.egg*
 .vscode
+build/
+dist/
