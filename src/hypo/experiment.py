@@ -148,7 +148,7 @@ class Experiment:
             # <resource-control> use env to control the using resouces & control the processing
             env = os.environ.copy()
             cuda_cuda_visible_devices = self.cudas.acquire()
-            env["CUDA_cuda_visible_devices"] = str(cuda_cuda_visible_devices)
+            env["CUDA_VISIBLE_DEVICES"] = str(cuda_cuda_visible_devices)
 
             # <launch>
             for running in running_candidate:
