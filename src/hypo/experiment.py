@@ -57,6 +57,8 @@ class Run:
     cwd: str = "."
     output: str = "."
     datetime: str = givename()  # as start time
+    summarize: bool = False # if True, the output will be a summary file.
+    success: bool = None  # if True, the run is success.
 
     def __post_init__(self):
         self.output = Path(self.output).absolute()
@@ -174,7 +176,6 @@ class Experiment:
 
                 if running.resource is not None:
                     running.resource.release()
-                # </launch>
 
                 t = time.time() - start_time
                 logger.info(f"[FINISH {t:.1f}s] {running.command}")
@@ -184,8 +185,11 @@ class Experiment:
                 )
                 self.cudas.release(cuda_cuda_visible_devices)
 
-            # Update the summary after every task
-            self.update_summary(running_candidate)
+                # Update the summary after every task
+                if running.summarize:
+                    self.update_summary(running_candidate)
+            # </launch>
+            
             self.bar()
 
     def update_summary(self, run):
@@ -255,7 +259,7 @@ def run(cuda_visible_devices=None, max_workers=None):
 
         def wrapper(*args, **kwargs):
             result: list = func(*args, **kwargs)
-            assert isinstance(result, list), "The result should be list."
+            assert isinstance(result, list), "The return value should be a list."
             # assert all([isinstance(x, Run) for x in result]), "The result should be list of Run."
             result.append(None)
             exp.launch(result, cuda_visible_devices=cuda_visible_devices, max_workers=max_workers)
