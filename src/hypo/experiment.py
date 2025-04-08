@@ -18,6 +18,7 @@ from loguru import logger
 from .resources import CUDAs, Resources, GlobalResources
 from time import strftime, localtime
 from alive_progress import alive_bar
+import traceback
 
 
 def givename(value=None):
@@ -50,24 +51,30 @@ class Run:
     asdict(Run(**aa)) -> dict
     """
 
+    # name for human readable
     name: str
+    # execute command
     command: str
+    # env var
+    env: dict = None
+    # control the parallel
     resource: Resources = None  # do not represent in asdict
     # The cwd for process start.
     cwd: str = "."
     output: str = "."
     datetime: str = givename()  # as start time
-    summarize: bool = False # if True, the output will be a summary file.
-    success: bool = None  # if True, the run is success.
+    summarize: bool = False  # if True, the output will be a summary file.
+    success: bool = True  # if True, the run is success.
 
     def __post_init__(self):
         self.output = Path(self.output).absolute()
         self.cwd = Path(self.cwd).absolute()
         self.output.mkdir(parents=True, exist_ok=True)
 
-    def _except_call_back(self, e: Exception):
-        logger.exception(f"Error\n{self.command}")
-        # logger.exception(e)
+    def _except_call_back(self, format_exc: str):
+        logger.exception(f"Error\n{self.command}\n")
+        self.exception = format_exc
+        self.success = False
 
     def __str__(self):
         return pprint.pformat(self.asdict())
@@ -76,6 +83,7 @@ class Run:
         d = {
             "name": self.name,
             "command": self.command,
+            "success": self.success,
             "cwd": str(self.cwd),
             "output": str(self.output),
             "datetime": self.datetime,
@@ -90,6 +98,10 @@ class Run:
             d["resource"] = self.resource.__class__.__name__
         if hasattr(self, "input"):
             d["input"] = str(self.input)
+        if hasattr(self, "exception"):
+            d["exception"] = self.exception
+        if self.env is not None:
+            d["env"] = self.env
 
         return d
 
@@ -116,6 +128,7 @@ class Experiment:
     args: list = None
     # a pipe to recv task from producer and consume the task to worker.
     runs: list
+    summarys: list = []
 
     def __init__(self, args: list = None) -> None:
 
@@ -123,6 +136,7 @@ class Experiment:
             self.args = args
 
         if hasattr(self, "env"):
+            # all the env need to be registered.
             os.environ.update(self.env)
 
     def worker(self):
@@ -139,10 +153,10 @@ class Experiment:
 
             if isinstance(running_candidate, list):
                 s = "\n".join([pprint.pformat(x.asdict()) for x in running_candidate])
-                logger.info(f"[LAUNCH Sequence]\n{s}")
+                logger.info(f"[LAUNCH Sequence]\n{s}\n")
 
             elif isinstance(running_candidate, Run):
-                logger.info(f"[LAUNCH]\n{pprint.pformat(running_candidate.asdict())}")
+                logger.info(f"[LAUNCH]\n{pprint.pformat(running_candidate.asdict())}\n")
                 running_candidate = [running_candidate]
             else:
                 raise Exception("Running should be list[Run] or Run.")
@@ -159,8 +173,13 @@ class Experiment:
                 running.start_at = datetime.datetime.now().strftime(
                     "%Y-%m-%d__%H-%M-%S"
                 )
+                # update the env for each running task
+                if running.env is not None:
+                    env.update(running.env)
+
                 if running.resource is not None:
                     running.resource.acquire()
+
                 try:
                     subprocess.run(
                         running.command,
@@ -172,37 +191,34 @@ class Experiment:
                         check=True,
                     )
                 except Exception as e:
-                    print(e)
+                    exc = traceback.format_exc()
+                    running._except_call_back(exc)
+                    running.summarize = True
 
                 if running.resource is not None:
                     running.resource.release()
 
-                t = time.time() - start_time
-                logger.info(f"[FINISH {t:.1f}s] {running.command}")
-                running.time_consume = str(datetime.timedelta(seconds=t))
+                t = f"{time.time() - start_time:.2f}"
+                logger.info(f"[FINISH {t}s]\n{running.command}\n")
+                running.time_consume = t
                 running.finish_at = datetime.datetime.now().strftime(
                     "%Y-%m-%d__%H-%M-%S"
                 )
                 self.cudas.release(cuda_cuda_visible_devices)
-
-                # Update the summary after every task
-                if running.summarize:
-                    self.update_summary(running_candidate)
             # </launch>
-            
+            if running.summarize:
+                # Update the summary after every task
+                self.summarys.extend(running_candidate)
+
             self.bar()
 
-    def update_summary(self, run):
+    def summary(self, run: Run | list[Run]):
         """Updates the summary file with the latest run information."""
-        summary_path = "summary.json"
+        summary_path = f"summary_{givename()}.json"
 
         # Make sure to synchronize access to the summary file across threads
         with self.summary_lock:
             summary = []
-            if os.path.exists(summary_path):
-                with open(summary_path, "r") as f:
-                    summary = json.load(f)
-
             # Check if `run` is a list of runs or a single run instance
             if isinstance(run, list):
                 sub_summary = []
@@ -234,7 +250,9 @@ class Experiment:
 
         logger.info(f"max workers: {max_workers}")
         start = time.time()
-        self.cudas = CUDAs(cuda_visible_devices=cuda_visible_devices, max_workers=max_workers)
+        self.cudas = CUDAs(
+            cuda_visible_devices=cuda_visible_devices, max_workers=max_workers
+        )
         num = len(self.runs) - 1
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             with alive_bar(num, title="Hypo Progress") as bar:
@@ -247,12 +265,19 @@ class Experiment:
                         logger.exception(e)
 
         time_consume = f"{time.time() - start:.2f}"
+        # Update the summary after every task
+
+        self.summary(self.summarys)
         logger.info(f"All tasks done, used {time_consume}s")
 
 
-
 def run(cuda_visible_devices=None, max_workers=None):
-    """Decorator. Run the experiments list"""
+    """The decorator.
+    
+    Args:
+        cuda_visible_devices (set): The cuda device to use.
+        max_workers (int): The max workers to use.
+    """
 
     def inner(func):
         exp = Experiment()
@@ -262,7 +287,11 @@ def run(cuda_visible_devices=None, max_workers=None):
             assert isinstance(result, list), "The return value should be a list."
             # assert all([isinstance(x, Run) for x in result]), "The result should be list of Run."
             result.append(None)
-            exp.launch(result, cuda_visible_devices=cuda_visible_devices, max_workers=max_workers)
+            exp.launch(
+                result,
+                cuda_visible_devices=cuda_visible_devices,
+                max_workers=max_workers,
+            )
             return result
 
         return wrapper
@@ -293,7 +322,9 @@ def runs(cuda_visible_devices=None, max_workers=None):
             # process.join()  # donot join here, no need for waiting for the processing() done
 
             # Process all items in the queue
-            exp.launch(q, cuda_visible_devices=cuda_visible_devices, max_workers=max_workers)
+            exp.launch(
+                q, cuda_visible_devices=cuda_visible_devices, max_workers=max_workers
+            )
 
         return wrapper
 
