@@ -4,7 +4,7 @@ import sys
 # if do not have this line, Python will not add the cwd path to the Python Path.
 sys.path.append(os.path.abspath(os.path.join(os.getcwd(), '.')))
 
-def main():
+def main() -> None:
     import importlib
     from .experiment import Experiment
     from .cfg import args, subargs

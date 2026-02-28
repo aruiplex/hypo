@@ -1,5 +1,7 @@
 *
 
+agent.md
+
 !*.py
 !*.toml
 !LICENSE.txt
@@ -14,3 +16,5 @@
 .vscode
 build/
 dist/
+
+._*

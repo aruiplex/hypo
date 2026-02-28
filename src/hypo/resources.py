@@ -1,13 +1,14 @@
 import GPUtil
 import threading
 from loguru import logger
+from typing import Set, List, Union, Optional
 
 
 class Resources:
-    def __len__(self):
+    def __len__(self) -> int:
         pass
 
-    def release(self, idx: int):
+    def release(self, idx: int) -> None:
         pass
 
     def acquire(self) -> int:
@@ -17,19 +18,20 @@ class Resources:
 class GlobalResources(Resources):
     # only one task could get the resource at the same time. Eg, git
 
-    def __init__(self, name="global-lock-233") -> None:
+    def __init__(self, name: str = "global-lock-233") -> None:
         self.lock = threading.Lock()
 
-    def __len__(self):
+    def __len__(self) -> int:
         if self.lock.locked():
             return 0
         else:
             return 1
 
     def acquire(self) -> int:
-        return self.lock.acquire()
+        self.lock.acquire()
+        return 0
 
-    def release(self, idx: int = 0):
+    def release(self, idx: int = 0) -> None:
         self.lock.release()
 
 
@@ -77,10 +79,12 @@ class GlobalResources(Resources):
 class CUDAs(Resources):
     """Dispatch the tasks to the different cudas."""
 
-    def __init__(self, cuda_visible_devices=None, max_workers=1) -> None:
+    def __init__(
+        self, cuda_visible_devices: Optional[Set[int]] = None, max_workers: int = 1
+    ) -> None:
         self.lock = threading.Lock()
         if cuda_visible_devices is None:
-            cudas = set(GPUtil.getAvailable(limit=8))
+            cudas: Set[int] = set(GPUtil.getAvailable(limit=8))
         else:
             assert isinstance(
                 cuda_visible_devices, set
@@ -88,22 +92,28 @@ class CUDAs(Resources):
             cudas = cuda_visible_devices
 
         logger.info(f"Visible GPUs: {cuda_visible_devices}")
-        self.cudas = [list(cudas)[i % len(cudas)] for i in range(max_workers)]
+        if len(cudas) == 0:
+            self.cudas = [""] * max_workers
+        else:
+            self.cudas = [
+                list(cudas)[i % len(cudas)] for i in range(max_workers)
+            ]
 
-        if max_workers > len(cudas):
+        if len(cudas) > 0 and max_workers > len(cudas):
             logger.warning(
                 f"Max workers is greater than the available GPUs. More than one task will be assigned to some GPUs."
             )
         logger.info(f"Available GPUs: {self.cudas}")
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.cudas)
 
     def acquire(self) -> int:
         with self.lock:
+            assert isinstance(self.cudas, list)
             return self.cudas.pop()
 
-    def release(self, idx):
+    def release(self, idx: int) -> None:
         with self.lock:
             if isinstance(self.cudas, set):
                 self.cudas.add(idx)

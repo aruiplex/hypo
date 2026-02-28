@@ -9,6 +9,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     "method",
     type=str,
+    nargs="?",
+    default="index",
 )
 
 # There could be unknown args, so use parse_known_args

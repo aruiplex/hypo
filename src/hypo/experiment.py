@@ -12,6 +12,7 @@ from pathlib import Path
 import GPUtil
 import json
 import datetime
+from typing import Any, List, Optional, Set, Union, Generator, Iterable
 import csv
 import pprint
 from loguru import logger
@@ -51,14 +52,10 @@ class Run:
     asdict(Run(**aa)) -> dict
     """
 
-    # name for human readable
-    name: str
-    # execute command
     command: str
-    # env var
-    env: dict = None
-    # control the parallel
-    resource: Resources = None  # do not represent in asdict
+    name: str | None = None
+    env: dict[str, str] | None = None
+    resource: Resources | None = None
     # The cwd for process start.
     cwd: str = "."
     output: str = "."
@@ -120,17 +117,14 @@ class Experiment:
     preparation: list
 
     # ===== For program =====
-    # The env need to be registered.
-    env: dict
-    # The parameters settings for this experiment.
-    parameters: any
-    # The argparse args for experiments.
-    args: list = None
-    # a pipe to recv task from producer and consume the task to worker.
-    runs: list
-    summarys: list = []
+    env: dict[str, str]
+    parameters: Any
+    args: list[str] | None = None
+    runs: list[Run | list[Run]]
+    summarys: list[Run | list[Run]] = field(default_factory=list)
 
-    def __init__(self, args: list = None) -> None:
+    def __init__(self, args: list[str] | None = None) -> None:
+        self.summarys = []
 
         if args is not None:
             self.args = args
@@ -237,7 +231,12 @@ class Experiment:
                     f"Updated the summary with {run if isinstance(run, list) else run.name} into {summary_path}"
                 )
 
-    def launch(self, runs: list, cuda_visible_devices=None, max_workers=None):
+    def launch(
+        self,
+        runs: list[Run | list[Run]],
+        cuda_visible_devices: set[int] | None = None,
+        max_workers: int | None = None,
+    ) -> None:
         """
         Run the experiments in parallel using processes.
         """
@@ -247,6 +246,8 @@ class Experiment:
 
         if max_workers is None:
             max_workers = len(GPUtil.getGPUs())
+            if max_workers == 0:
+                max_workers = os.cpu_count() or 1
 
         logger.info(f"max workers: {max_workers}")
         start = time.time()
@@ -255,7 +256,7 @@ class Experiment:
         )
         num = len(self.runs) - 1
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            with alive_bar(num, title="Hypo Progress") as bar:
+            with alive_bar(num, title="✨ Hypo Progress", bar="smooth", spinner="dots_waves") as bar:
                 self.bar = bar
                 futures = [executor.submit(self.worker) for _ in range(max_workers)]
                 for future in as_completed(futures):
@@ -283,12 +284,16 @@ def run(cuda_visible_devices=None, max_workers=None):
         exp = Experiment()
 
         def wrapper(*args, **kwargs):
-            result: list = func(*args, **kwargs)
-            assert isinstance(result, list), "The return value should be a list."
-            # assert all([isinstance(x, Run) for x in result]), "The result should be list of Run."
-            result.append(None)
+            result = func(*args, **kwargs)
+            if isinstance(result, Run):
+                launch_list = [result, None]
+            elif isinstance(result, list):
+                launch_list = result + [None]
+            else:
+                raise TypeError("The return value should be a list of Run objects or a single Run object.")
+
             exp.launch(
-                result,
+                launch_list,
                 cuda_visible_devices=cuda_visible_devices,
                 max_workers=max_workers,
             )

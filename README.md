@@ -6,16 +6,27 @@ Hypo is a tool to help you run commands concurrently.  You can use Hypo to run t
 
 You can install it by `pip install hypo-run`.
 
+## Industrial Code Quality & CI
+
+Hypo complies with modern industrial code quality standards:
+- Formatted and linted strictly with `ruff`.
+- Fully typed checking with `pyright`.
+- Continuous Integration (CI) securely tests the codebase continuously using GitHub Actions.
+- Automated deployment to PyPI via GitHub Actions Trusted Publisher setup.
+
 ```python
 # In the file folder_a/index.py
 from hypo import run, Run
 
 @run()
 def trial():
-    return [Run(command="echo this_is_a_very_complex_prompt_to_start_your_experiment_in_bash", name="indicate your task")]
+    # You can return a single Run object directly.
+    # The name parameter is also optional!
+    return Run(command="echo this_is_a_very_complex_prompt_to_start_your_experiment_in_bash")
 
 @run(max_workers=10) # run 10 tasks concurrently
 def trial():
+    # Or you can return a list of Run objects
     return [Run(command=f"echo {i}", name="echo 0 to 9") for i in range(10)]
 
 ```
@@ -33,6 +44,8 @@ hypo folder_a trial # to start method trial. Create tasks, then run.
 # if you are already in the folder_a
 hypo trial # to start method trial. Create tasks, then run.
 
+# if the file named `index.py` and the method is `index`, you can run without arguments!
+hypo 
 ```
 
 Or, directly call the function you need.
